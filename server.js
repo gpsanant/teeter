@@ -1,6 +1,5 @@
 const express = require('express');
 const path = require('path');
-const crypto = require('crypto');
 const Database = require('better-sqlite3');
 const rateLimit = require('express-rate-limit');
 
@@ -10,17 +9,19 @@ const PORT = process.env.PORT || 8080;
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'scores.db');
 const MAX_SCORES = 10;
 
+// Retention cap: maximum number of rows kept in the scores table.
+// Prevents unbounded storage growth while preserving recent history.
+const MAX_RETAINED_SCORES = 1000;
+
 // Score validation constants
 const MAX_REASONABLE_SCORE = 10000;
 const MAX_NAME_LENGTH = 15;
 
-// Generate a per-request nonce and attach security headers
+// Security headers (no inline scripts — all scripts are external files)
 app.use((req, res, next) => {
-  const nonce = crypto.randomBytes(16).toString('base64');
-  res.locals.cspNonce = nonce;
   res.setHeader('Content-Security-Policy',
     "default-src 'self'; " +
-    "script-src 'self' 'nonce-" + nonce + "' https://cdn.jsdelivr.net; " +
+    "script-src 'self' https://cdn.jsdelivr.net; " +
     "style-src 'self' 'unsafe-inline'; " +
     "connect-src 'self' https://cdn.jsdelivr.net https://storage.googleapis.com; " +
     "worker-src 'self' blob:; " +
@@ -64,9 +65,25 @@ const insertScore = db.prepare(
   'INSERT INTO scores (name, score) VALUES (?, ?)'
 );
 
-// Note: All historical scores are retained in the database. Only the top
-// MAX_SCORES are ever returned by the API. No rows are deleted, so data is
-// preserved if requirements expand (e.g. audit, analytics, broader history).
+// Retention: delete oldest rows beyond the cap, preserving the top MAX_SCORES
+// regardless of age plus additional recent history up to MAX_RETAINED_SCORES.
+const pruneOldScores = db.prepare(`
+  DELETE FROM scores WHERE id NOT IN (
+    SELECT id FROM scores ORDER BY score DESC LIMIT ?
+  ) AND id NOT IN (
+    SELECT id FROM scores ORDER BY created_at DESC LIMIT ?
+  )
+`);
+
+// Transactional insert with bounded retention
+const insertAndRetain = db.transaction((name, score) => {
+  insertScore.run(name, score);
+  const { count } = countScores.get();
+  if (count > MAX_RETAINED_SCORES) {
+    // Keep the top MAX_SCORES by score and the newest MAX_RETAINED_SCORES by date
+    pruneOldScores.run(MAX_SCORES, MAX_RETAINED_SCORES);
+  }
+});
 
 // Middleware
 app.use(express.json({ limit: '1kb' }));
@@ -80,11 +97,8 @@ const scoreSubmitLimiter = rateLimit({
   message: { error: 'Too many score submissions. Please try again later.' },
 });
 
-// Serve static files, but skip index.html so it can be served dynamically
-// with a per-request CSP nonce injected into the inline script tag.
-app.use(express.static(path.join(__dirname, 'public'), {
-  index: false
-}));
+// Serve static files
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Reject cross-origin API requests using strict origin equality
 app.use('/api', (req, res, next) => {
@@ -145,8 +159,8 @@ app.post('/api/scores', scoreSubmitLimiter, (req, res) => {
       }
     }
 
-    // Insert score (all historical scores are retained; only top N are queried)
-    insertScore.run(sanitizedName, score);
+    // Insert score and enforce retention cap
+    insertAndRetain(sanitizedName, score);
 
     const scores = getTopScores.all(MAX_SCORES);
     res.status(201).json({ qualified: true, scores });
@@ -177,22 +191,9 @@ app.get('/api/scores/qualifies', (req, res) => {
   }
 });
 
-// Serve index.html with CSP nonce injected into the inline script tag
-const indexHtmlPath = path.join(__dirname, 'public', 'index.html');
-const indexHtmlTemplate = fs.readFileSync(indexHtmlPath, 'utf8');
-
-function serveIndex(req, res) {
-  const nonce = res.locals.cspNonce;
-  const html = indexHtmlTemplate.replace('<script>', '<script nonce="' + nonce + '">');
-  res.type('html').send(html);
-}
-
-// Serve index.html at root and as SPA fallback
-app.get('/', serveIndex);
-app.get('/{*splat}', (req, res, next) => {
-  // Only serve index.html for non-file paths (SPA fallback)
-  if (req.path.includes('.')) return next();
-  serveIndex(req, res);
+// SPA fallback
+app.get('/{*splat}', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Graceful shutdown
