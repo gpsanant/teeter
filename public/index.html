@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teeter</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.183.2/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.183.2/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="score">Score: 0</div>
+  <div id="level">Level 1</div>
+  <div id="timer">00:00</div>
+  <button id="leaderboard-btn">Leaderboard</button>
+  <div id="overlay">
+    <div class="title">TEETER</div>
+    <div class="subtitle">Loading...</div>
+  </div>
+  <div id="gameover-overlay">
+    <div id="gameover-box">
+      <div class="go-title">GAME OVER</div>
+      <div class="go-score"></div>
+      <div class="go-message"></div>
+      <div id="name-entry">
+        <label for="name-input">Enter your name:</label>
+        <input type="text" id="name-input" maxlength="15" placeholder="Your name" autocomplete="off">
+        <br>
+        <button id="name-submit">Submit</button>
+      </div>
+    </div>
+  </div>
+  <div id="leaderboard-panel">
+    <div id="leaderboard-box">
+      <div class="lb-title">LEADERBOARD</div>
+      <div id="leaderboard-list"></div>
+      <button id="leaderboard-close">Close</button>
+    </div>
+  </div>
+  <div id="slowdown-indicator">SLOWED</div>
+  <div id="boost-indicator">BOOST</div>
+  <div id="version-info" data-updated="2026-03-20T12:00:00Z">v1.0.0</div>
+  <script src="js/version-info.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
