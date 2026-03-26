@@ -39,7 +39,6 @@ const slowdownIndicator = document.getElementById('slowdown-indicator');
 const boostIndicator = document.getElementById('boost-indicator');
 const levelEl = document.getElementById('level');
 const timerEl = document.getElementById('timer');
-const speedEl = document.getElementById('speed');
 
 const STORAGE_KEY = 'teeter_highscores';
 const MAX_SCORES = 10;
@@ -164,7 +163,6 @@ function enterFinished(timestamp) {
 
   levelEl.style.display = 'none';
   timerEl.style.display = 'none';
-  speedEl.style.display = 'none';
   gameoverOverlay.classList.add('visible');
 }
 
@@ -190,7 +188,6 @@ function enterGameOver() {
 
   levelEl.style.display = 'none';
   timerEl.style.display = 'none';
-  speedEl.style.display = 'none';
   gameoverOverlay.classList.add('visible');
 }
 
@@ -218,7 +215,6 @@ function exitGameOver() {
   updateScore(0);
   levelEl.style.display = 'block';
   timerEl.style.display = 'block';
-  speedEl.style.display = 'block';
 
   const startPos = getStartBallPosition(config);
   updateBallPosition(startPos.x, startPos.y, startPos.z);
@@ -270,7 +266,6 @@ async function init() {
     scoreEl.style.display = 'block';
     levelEl.style.display = 'block';
     timerEl.style.display = 'block';
-    speedEl.style.display = 'block';
     leaderboardBtn.style.display = 'block';
     updateScore(0);
     gameStartTime = performance.now();
@@ -324,10 +319,6 @@ function gameLoop(timestamp) {
     }
 
     if (result.turtleCollected) { hideTurtleById(result.turtleCollected); }
-
-    // Update speed indicator
-    const speed = Math.sqrt(result.vx * result.vx + result.vz * result.vz);
-    speedEl.textContent = 'Speed: ' + speed.toFixed(1) + ' m/s';
 
     if (result.slowdownActive) { slowdownIndicator.classList.add('visible'); }
     else { slowdownIndicator.classList.remove('visible'); }
