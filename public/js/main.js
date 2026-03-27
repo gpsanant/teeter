@@ -409,6 +409,7 @@ async function init() {
   }
 
   var timeout = createInitTimeout();
+  var stream;
 
   try {
     if (!rendererInitialized) {
@@ -426,7 +427,6 @@ async function init() {
     // Request camera access
     subtitle.textContent = 'Requesting camera access...';
 
-    var stream;
     try {
       stream = await Promise.race([
         navigator.mediaDevices.getUserMedia({
@@ -484,6 +484,10 @@ async function init() {
     requestAnimationFrame(gameLoop);
   } catch (err) {
     timeout.cancel();
+    // Stop camera stream if it was acquired before the error
+    if (stream) {
+      stream.getTracks().forEach(function(t) { t.stop(); });
+    }
     console.error('Initialization error:', err);
     showError('Failed to initialize.\nPlease reload and try again.', true);
     return;
